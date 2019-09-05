@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="ISO-8859-15"?>
+<launch>
+  <arg name="ns" default="racecar01" />
+
+	<!-- Spawn the World -->
+  <include file="$(find erl_models)/launch/spawn_world.launch">
+    <arg name="world" value="fla_warehouse1"/>
+    <arg name="scale" value="1"/>
+    <arg name="gui" value="false"/>
+  </include>
+
+  <!-- Spawn the Racecar -->
+  <include file="$(find erl_models)/launch/spawn_robot.launch">
+    <arg name="ns" value="$(arg ns)"/>
+    <arg name="tf_prefix" value="$(arg ns)" />    
+    <arg name="model" value="$(find erl_models)/urdf/racecar/racecar.xacro"/>
+    <arg name="px" value="5.0" />
+    <arg name="py" value="0.0" />
+    <arg name="use_groundtruth_odom" value="true" />
+  </include>
+  
+  <!-- Load joint controller configurations from YAML file to parameter server -->
+  <group ns="$(arg ns)">
+    <rosparam file="$(find erl_models)/urdf/racecar/racecar_control.yaml" command="load"/>
+  </group>
+  
+  <!-- load the controllers -->
+  <node name="controller_manager" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" ns="$(arg ns)" args="left_rear_wheel_velocity_controller right_rear_wheel_velocity_controller
+                                             left_front_wheel_velocity_controller right_front_wheel_velocity_controller
+                                             left_steering_hinge_position_controller right_steering_hinge_position_controller
+                                             joint_state_controller"/>
+                                             
+  <!-- Launch rviz -->
+  <node pkg="rviz" type="rviz" name="rviz"
+        args="-d $(find erl_models)/rviz/racecar01.cfg.rviz"/>
+
+  <!-- servo node -->
+  <node pkg="erl_models" type="servo_commands.py" name="servo_commands" output="screen">
+    <remap from="/racecar/ackermann_cmd_mux/output" to="/vesc/low_level/ackermann_cmd_mux/output"/>
+    <remap from="/racecar/left_rear_wheel_velocity_controller/command" to="/$(arg ns)/left_rear_wheel_velocity_controller/command"/>
+    <remap from="/racecar/right_rear_wheel_velocity_controller/command" to="/$(arg ns)/right_rear_wheel_velocity_controller/command"/>
+    <remap from="/racecar/left_front_wheel_velocity_controller/command" to="/$(arg ns)/left_front_wheel_velocity_controller/command"/>
+    <remap from="/racecar/right_front_wheel_velocity_controller/command" to="/$(arg ns)/right_front_wheel_velocity_controller/command"/>
+    <remap from="/racecar/left_steering_hinge_position_controller/command" to="/$(arg ns)/left_steering_hinge_position_controller/command"/>
+    <remap from="/racecar/right_steering_hinge_position_controller/command" to="/$(arg ns)/right_steering_hinge_position_controller/command"/>
+  </node>
+  
+  
+  <!-- Allow for Gazebo to broadcast odom -->
+  <!--node pkg="erl_models" name="gazebo_odometry_node" type="gazebo_odometry.py"/-->
+
+  <!-- Velocity muxer -->
+  <!--arg name="racecar_version" default="$(arg ns)" />
+  <include file="$(find erl_models)/launch/racecar/mux.launch" ns="vesc" /-->
+
+
+  <!-- Velocity muxer -->
+  <arg name="racecar_version" default="$(arg ns)" />
+  <include file="$(find racecar)/launch/mux.launch" ns="vesc" />
+
+<!--
+   Run Racecar Mapping 
+  <include file="$(find erl_models)/launch/racecar/racecar_mapping.launch">
+    <arg name="ns" value="$(arg ns)"/>
+    <arg name="tf_prefix" value="$(arg ns)" />
+    <arg name="scan_topic" value="scan" />
+    <arg name="base_frame" value="base_link"/>
+    <arg name="odom_frame" value="odom"/>
+    <arg name="map_frame"  value="map"/>        
+  </include>
+-->
+  <!-- Laser Scan Matcher -->
+
+  <arg name="publish_covariance" default="true"/>
+
+  <group if="$(arg publish_covariance)">
+    <param name="laser_scan_matcher_node/do_compute_covariance" value="1"/>
+    <param name="laser_scan_matcher_node/publish_pose_with_covariance" value="true"/>
+    <param name="laser_scan_matcher_node/publish_pose_with_covariance_stamped" value="true"/>
+  </group>
+
+  <node pkg="laser_scan_matcher" type="laser_scan_matcher_node"
+    name="laser_scan_matcher_node" output="screen">
+
+    <remap from="scan" to="/racecar01/scan"/>
+    <remap from="imu/data" to="/racecar01/imu"/>
+    <remap from="odom" to="/racecar01/motor_odom"/>
+
+    <param name="publish_pose_stamped" value="true"/>
+    <param name="publish_pose" value="false"/>
+    <param name="publish_tf" value="false"/>
+    <param name="fixed_frame" value="/racecar01/map"/>
+    <param name="base_frame" value="/racecar01/base_link"/>
+
+    <param name="use_imu" value="true"/>
+    <param name="use_odom" value="true"/>
+    <param name="use_vel" value="false"/>
+
+    <param name="kf_dist_linear" value="0.1"/> <!-- default 0.1 -->
+    <param name="kf_dist_angular" value="0.175"/> <!-- default 0.175 -->
+
+    <param name="max_iterations" value="20"/>
+    <param name="sigma" value="0.01"/> <!-- default 0.01 -->
+    <param name="do_compute_covariance" value="1"/>
+
+    <param name="max_correspondence_dist" value="10"/>
+    <param name="outliers_maxPerc" value="0.5"/>
+    <param name="outliers_remove_doubles" value="0"/>
+    <param name="restart" value="1"/>
+
+    <param name="history" value="1"/>
+  </node>
+
+  <!-- Pose Graph -->
+
+  <node pkg="erl_graph_slam" type="posegraph"
+    name="posegraph" output="screen">
+
+    <param name="history" value="1"/>
+
+  </node>
+</launch>
+

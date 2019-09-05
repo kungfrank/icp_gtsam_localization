@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="ISO-8859-15"?>
+<launch>
+
+    <!--PLAY BAG FILE-->
+    <param name="use_sim_time" value="true" />
+
+	<node pkg="tf" type="static_transform_publisher" name="base_to_imu" args="0.245 0 0.117 0.707106781187 0.707106781187 0 0 /base_link /base_imu_link 100" />
+
+	<node pkg="tf" type="static_transform_publisher" name="base_to_laser" args="0.285 0 0.127 0 0 0 1 /base_link /laser 100" />
+
+    <node pkg="rosbag" type="play" name="player" output="screen" args="/media/frank/9016-4EF8/posegraph_demo/2019-06-27-22-58-48.bag --clock -r 0.8"/>
+
+</launch>
+
